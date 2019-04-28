@@ -21,14 +21,18 @@ function checkStatus()
     return $aux4
 }
 
+function installAplication()
+{
+    echo -e "instalando $@ ... \n"
+    sudo apt-get --assume-yes install $@ > /dev/null
+}
 
 ###########################################################
 #                  1) INSTALL APACHE                      #
 ###########################################################
 function apacheInstall()
 {
-	echo "instalando ..."
-    sudo apt-get --assume-yes install apache2
+    installAplication apache2
     echo "realizando prueba de conexión..."
     aux=$(sudo netstat -anp | grep apache)
     if [[ -z aux ]]
@@ -53,8 +57,7 @@ function apacheAction()
 ###########################################################
 function phpInstall()
 {
-    echo "instalando..."
-    sudo apt-get --assume-yes install php
+    installAplication php
     sudo apt install php libapache2-mod-php
     echo "reiniciando apache" 
     sudo service apache2 restart
@@ -80,11 +83,14 @@ function createPython()
     dir=$(pwd | grep fich)
     if [ -n dir ]
     then 
-        sudo apt-get --assume-yes install python-virtualenv virtualenv
+        if checkStatus virtualenv
+        then
+            installAplication python-virtualenv virtualenv
+        fi
         if checkStatus python3 
         then
             echo -e "instalando python3... \n"
-            sudo apt-get --asume-yes install python3
+            installAplication python3
         fi
     fi
     user=$(whoami)
@@ -97,14 +103,31 @@ function createPython()
     fi
     echo -e " \n"
     #Creamos entorno virtual 
-    virtualenv env --python=python3
-    dir="/home/$user/env"
+    cd $dir
+    virtualenv $1 --python=python3
     
     #Activamos entorno virtual
     echo "Se va ha activar el entorno virtual en $dir"
-    cd $dir
+    
     source bin/activate
 }   
+
+###########################################################
+#                  6) INSTALAR PAQUETES                   #
+###########################################################
+function installPackages()
+{
+    echo "Instalando los paquetes pyhton3-pip y dos2unix"
+    installAplication python3-pip
+    installAplication dos2unix
+    
+    echo "Instalando los paquetes numpy, nltk y argparse en el entorno virtual python3envmetrix"
+    createPython python3envmetrix
+    installAplication numpy
+    installAplication nltk
+    installAplication argparse
+    deactivate python3envmetrix
+}
 
 ###########################################################
 #                     12) SALIR                          #
@@ -125,7 +148,7 @@ opcionmenuppal=0
 while test $opcionmenuppal -ne 12
 do
 	#Muestra el menu
-	echo -e "\n \n"
+	echo -e " \n"
 	echo -e "1 Instala Apache \n"
 	echo -e "2 Activar Apache \n"
 	echo -e "3 Instalar el modulo php \n"
@@ -175,6 +198,8 @@ do
                 ;;
             5)
                 createPython;;
+            6)
+                installPackages;;
 			12) 
                 fin;;
 			*) 

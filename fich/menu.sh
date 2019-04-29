@@ -7,7 +7,7 @@
 
 function checkStatus()
 {
-    echo -e "Comprobando el estado de $1 \n"
+    echo -e "Comprobando el estado de $@ \n"
     aux=$(aptitude show $1 | grep "State: installed")
 	aux2=$(aptitude show $1 | grep "Estado: instalado")
 	aux3=$aux$aux2
@@ -21,12 +21,41 @@ function checkStatus()
     return $aux4
 }
 
-function installAplication()
+function checkStatusPY()
 {
-    echo -e "instalando $@ ... \n"
-    sudo apt-get --assume-yes install $@ > /dev/null
+    echo -e "Comprobando el estado de $@... \n"
+    aux=$(pip show $@)
+    aux1=0
+    if [[ -z "$aux" ]]
+    then
+        let aux1=0
+    else
+        let aux1=1
+    fi
+    return $aux1
 }
 
+function installAplication()
+{
+    if checkStatus $@
+    then
+        echo -e "instalando $@ ... \n"
+        sudo apt-get --assume-yes install $@ > /dev/null
+    else 
+        echo -e "$@ ya estaba instalado \n"
+    fi
+}
+
+function installAplicationPY()
+{
+    if checkStatusPY $@ 
+    then
+        echo -e "instalando $@... \n"
+        pip install $@ > /dev/null
+    else
+        echo -e "$@ ya estaba instalado \n"
+    fi
+}
 ###########################################################
 #                  1) INSTALL APACHE                      #
 ###########################################################
@@ -37,7 +66,7 @@ function apacheInstall()
     aux=$(sudo netstat -anp | grep apache)
     if [[ -z aux ]]
     then 
-        echo "¡PROBLEMAS CON LA CONEXIÓN"
+        echo "¡PROBLEMAS CON LA CONEXIÓN!"
     fi
 }
 
@@ -58,8 +87,8 @@ function apacheAction()
 function phpInstall()
 {
     installAplication php
-    sudo apt install php libapache2-mod-php
-    echo "reiniciando apache" 
+    installAplication libapache2-mod-php
+    echo -e "reiniciando apache... \n" 
     sudo service apache2 restart
 }
 
@@ -83,15 +112,8 @@ function createPython()
     dir=$(pwd | grep fich)
     if [ -n dir ]
     then 
-        if checkStatus virtualenv
-        then
-            installAplication python-virtualenv virtualenv
-        fi
-        if checkStatus python3 
-        then
-            echo -e "instalando python3... \n"
-            installAplication python3
-        fi
+        installAplication python-virtualenv virtualenv
+        installAplication python3
     fi
     user=$(whoami)
     root="root"
@@ -107,9 +129,10 @@ function createPython()
     virtualenv $1 --python=python3
     
     #Activamos entorno virtual
-    echo "Se va ha activar el entorno virtual en $dir"
     
-    source bin/activate
+    echo -e "Se va ha activar el entorno virtual en $dir \n"
+    dir=$dir/python3envmetrix/bin/activate
+    source $dir
 }   
 
 ###########################################################
@@ -117,16 +140,24 @@ function createPython()
 ###########################################################
 function installPackages()
 {
-    echo "Instalando los paquetes pyhton3-pip y dos2unix"
+    echo -e "Instalando los paquetes pyhton3-pip y dos2unix \n"
     installAplication python3-pip
     installAplication dos2unix
     
-    echo "Instalando los paquetes numpy, nltk y argparse en el entorno virtual python3envmetrix"
+    echo -e "Instalando los paquetes numpy, nltk y argparse en el entorno virtual python3envmetrix \n"
     createPython python3envmetrix
-    installAplication numpy
-    installAplication nltk
-    installAplication argparse
+    installAplicationPY numpy
+    installAplicationPY nltk
+    installAplicationPY argparse
     deactivate python3envmetrix
+}
+
+###########################################################
+#                  7) TESTEAR PY VM                       #
+###########################################################
+function testPython()
+{
+
 }
 
 ###########################################################
@@ -165,41 +196,25 @@ do
 	read -p "Elige una opcion:" opcionmenuppal
 	case $opcionmenuppal in
 			1) 
-                if checkStatus apache2
-                then 
-                    apacheInstall
-                else
-                    echo "apache ya estaba instalado"
-                fi
+                apacheInstall
                 ;;
             2)
-                if checkStatus apache2
-                then 
-                    apacheInstall
-                else
-                    apacheAction
-                fi 
+                apacheInstall
+                apacheAction
                 ;;
             3)
-                if checkStatus php
-                then 
-                    phpInstall
-                else
-                    echo "php ya estaba instalado"
-                fi
+                phpInstall
                 ;;
             4)
-                if checkStatus php
-                then
-                    phpInstall
-                else
-                    phpTest
-                fi
+                phpInstall
+                phpTest
                 ;;
             5)
-                createPython;;
+                createPython
+                ;;
             6)
-                installPackages;;
+                installPackages
+                ;;
 			12) 
                 fin;;
 			*) 

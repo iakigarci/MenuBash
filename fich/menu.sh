@@ -5,9 +5,10 @@
 #                 SUBPROGRAMAS ADICIONALES                #
 ###########################################################
 
+#!/bin/bash
 function checkStatus()
 {
-    echo -e "Comprobando el estado de $@ \n"
+    echo -e "Comprobando el estado de $@... \n"
     aux=$(aptitude show $1 | grep "State: installed")
 	aux2=$(aptitude show $1 | grep "Estado: instalado")
 	aux3=$aux$aux2
@@ -26,7 +27,7 @@ function checkStatusPY()
     echo -e "Comprobando el estado de $@... \n"
     aux=$(pip show $@)
     aux1=0
-    if [[ -z "$aux" ]]
+    if [[ -z $aux ]]
     then
         let aux1=0
     else
@@ -79,6 +80,10 @@ function apacheAction()
     sudo service apache2 start
     aux=$( sudo service apache2 status | grep "● apache2.service - The Apache HTTP Server")
     echo $aux
+    
+    installAplication net-tools
+    netstat -l | grep http
+    sleep 1
 }
 
 ###########################################################
@@ -146,10 +151,10 @@ function installPackages()
     
     echo -e "Instalando los paquetes numpy, nltk y argparse en el entorno virtual python3envmetrix \n"
     createPython python3envmetrix
+    cd /media/datos/UNIVERSIDAD/ISO/AplicacionWeb_ComplejidadTextual/ProyectoISO/fich/python3envmetrix/lib/python3.5/site-packages/
     installAplicationPY numpy
     installAplicationPY nltk
     installAplicationPY argparse
-    deactivate python3envmetrix
 }
 
 ###########################################################
@@ -157,7 +162,21 @@ function installPackages()
 ###########################################################
 function testPython()
 {
+    installPackages 
+    cd /media/datos/UNIVERSIDAD/ISO/AplicacionWeb_ComplejidadTextual/ProyectoISO/fich
+    ./complejidadtextual.py textos/english.doc.txt
+    deactivate python3envmetrix
+}
 
+function viendoLogs()
+{
+    tail -m 100 /var/log/apache2/error-log
+}
+
+function gestionarLogs()
+{
+    cd /var/log/
+    archivoscomprimidos="/tmp/aux.txt"    
 }
 
 ###########################################################
@@ -214,6 +233,9 @@ do
                 ;;
             6)
                 installPackages
+                ;;
+            7)
+                testPython
                 ;;
 			12) 
                 fin;;

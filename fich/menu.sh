@@ -6,9 +6,11 @@
 ###########################################################
 
 #!/bin/bash
+
+dirMenu=$(pwd)
 function checkStatus()
 {
-    echo -e "Comprobando el estado de $@... \n"
+    echo -e ">>Comprobando el estado de $@... \n"
     aux=$(aptitude show $1 | grep "State: installed")
 	aux2=$(aptitude show $1 | grep "Estado: instalado")
 	aux3=$aux$aux2
@@ -24,10 +26,10 @@ function checkStatus()
 
 function checkStatusPY()
 {
-    echo -e "Comprobando el estado de $@... \n"
+    echo -e ">>Comprobando el estado de $@... \n"
     aux=$(pip show $@)
     aux1=0
-    if [[ -z $aux ]]
+    if [[ -z "$aux" ]]
     then
         let aux1=0
     else
@@ -57,6 +59,51 @@ function installAplicationPY()
         echo -e "$@ ya estaba instalado \n"
     fi
 }
+
+
+function checkEnvStatus
+{
+    aux=$(pip -V)
+    aux2=0
+    if [[ -z "$aux" ]]
+    then
+        let aux2=0
+    else    
+        let aux2=1
+    fi
+    return $aux2
+}
+
+function acticateEnv()
+{
+    echo -e "activando entorno python... \n"
+    if checkEnvStatus
+    then
+        createPython python3envmetrix
+    fi
+    source python3envmetrix/bin/activate
+    aux=$(pip -V)
+    if [[ -n "$aux" ]]
+    then
+        echo -e "ACTIVADO EL ENTORNO VIRTUAL \n"
+        pip -V
+    fi
+}
+    
+###########################################################
+#                  0) DESINSTALAR                         #
+###########################################################
+
+function unistall()
+{
+    sudo service apache2 stop
+    sudo apt-get update
+    sudo apt-get purgeapache2 apache2-utils apache2-data
+    sudo apt-get purge php libapache2-mod-php
+    sudo apt-get autoremove
+    sudo rm -rf /var/www/html/*
+}
+
 ###########################################################
 #                  1) INSTALL APACHE                      #
 ###########################################################
@@ -68,6 +115,8 @@ function apacheInstall()
     if [[ -z aux ]]
     then 
         echo "¡PROBLEMAS CON LA CONEXIÓN!"
+    else
+        sudo netstat -anp | grep apache | awk 'BEGIN{print "PUERTO\n------"} {printf $4,$2} {printf "\n"}'
     fi
 }
 
@@ -78,7 +127,7 @@ function apacheAction()
 {
     echo "activado apache..."
     sudo service apache2 start
-    aux=$( sudo service apache2 status | grep "● apache2.service - The Apache HTTP Server")
+    aux=$( sudo service apache2 status | grep active)
     echo $aux
     
     installAplication net-tools
@@ -104,9 +153,20 @@ function phpTest()
 {
     echo "creando el archivo test.php"
     sudo sh -c 'echo "<?php phpinfo(); ?>" ?> /var/www/html/test.php'
-    firefox-esr http://localhost/test.php
     
-    #FALTA COMPROBAR PERMISOS
+    #Comprobamos los permisos
+    user1=$(ls -l | grep test.php | awk '{printf $3}')
+    user2=$(ls -l | grep index.html | awk '{printf $3}')
+    if [[ "$user1" == "$user2" ]]
+    then
+        echo -e "Los ficheros tienene el user igual \n"
+        sleep 2
+        
+        #Abrimos la pagina de información en firefox
+        firefox-esr http://localhost/test.php
+    else
+        echo -e "¡Los usuarios de los fichero son diferentes! \n"
+    fi
 }
 
 ###########################################################
@@ -114,12 +174,11 @@ function phpTest()
 ###########################################################
 function createPython()
 {
-    dir=$(pwd | grep fich)
-    if [ -n dir ]
-    then 
-        installAplication python-virtualenv virtualenv
-        installAplication python3
-    fi
+    echo -e "COMPROBANDO PYTHON \n"
+    cd /var/www/html
+    rm -d -rf $1
+    installAplication python-virtualenv virtualenv
+    installAplication python3
     user=$(whoami)
     root="root"
     if [ "$user" == "$root" ]
@@ -130,14 +189,7 @@ function createPython()
     fi
     echo -e " \n"
     #Creamos entorno virtual 
-    cd $dir
     virtualenv $1 --python=python3
-    
-    #Activamos entorno virtual
-    
-    echo -e "Se va ha activar el entorno virtual en $dir \n"
-    dir=$dir/python3envmetrix/bin/activate
-    source $dir
 }   
 
 ###########################################################
@@ -145,16 +197,16 @@ function createPython()
 ###########################################################
 function installPackages()
 {
-    echo -e "Instalando los paquetes pyhton3-pip y dos2unix \n"
+    echo -e "INSTALANDO PAQUETES \n"
     installAplication python3-pip
     installAplication dos2unix
     
-    echo -e "Instalando los paquetes numpy, nltk y argparse en el entorno virtual python3envmetrix \n"
-    createPython python3envmetrix
-    cd /media/datos/UNIVERSIDAD/ISO/AplicacionWeb_ComplejidadTextual/ProyectoISO/fich/python3envmetrix/lib/python3.5/site-packages/
+    #createPython python3envmetrix
+    source python3envmetrix/bin/activate
     installAplicationPY numpy
     installAplicationPY nltk
     installAplicationPY argparse
+    deactivate
 }
 
 ###########################################################
@@ -162,26 +214,118 @@ function installPackages()
 ###########################################################
 function testPython()
 {
-    installPackages 
-    cd /media/datos/UNIVERSIDAD/ISO/AplicacionWeb_ComplejidadTextual/ProyectoISO/fich
-    ./complejidadtextual.py textos/english.doc.txt
+    source python3envmetrix/bin/activate
+    echo -e "Iniciando el script de Pyhton \n"
+    python3 complejidadtextual.py textos/english.doc.txt
     deactivate python3envmetrix
 }
 
-function viendoLogs()
+###########################################################
+#                  8) PROBAR COMPLEJIDAD                  #
+###########################################################
+function complexAplicationInstall()
 {
-    tail -m 100 /var/log/apache2/error-log
+    #Copiamos todos los archivos a la carpeta /var/www/html
+    act=$(pwd)
+    if [[ "$dirMenu" != "$act" ]]
+    then
+        cd $dirMenu
+    fi
+    echo "directorio actual $(pwd)"
+    sudo rm -rf /var/www/html/index.php /var/www/html/webprocess.sh /var/www/html/complejidadtextual.py
+    sleep 2
+    sudo cp {index.php,webprocess.sh,complejidadtextual.py,textos/english.doc.txt} /var/www/html
+    sudo chown -R www-data:www-data /var/www
+    sudo usermod -a -G www-data iakigarci
+    sudo chmod -R 777 /var/www/html 
+    #Asignamos permisos
+    
+    cd /var/www/html
+    createPython python3envmetrix
+    sudo sed -i "s/^VIRTUAL_ENV=.*/VIRTUAL_ENV=\"\/var\/www\/html\/python3envmetrix\"/g" /var/www/html/
+    acticateEnv
+    sudo sed -i "s/^DIRVIRTPYTHON=.*/DIRVIRTPYTHON=\'\/var\/www\/html\/python3envmetrix\'/g" /var/www/html/
+    installPackages
+    ./webprocess.sh english.doc.txt
+    
+    sudo chown -R www-data:www-data /var/www
+    sudo usermod -a -G www-data iakigarci
+    sudo chmod -R 777 /var/www/html 
+    
+    
+    #/media/datos/UNIVERSIDAD/ISO/AplicacionWeb_ComplejidadTextual/ProyectoISO/fich/python3envmetrix
 }
+
+
+###########################################################
+#                  9) VISUALIZAR COMPLEJIDAD              #
+###########################################################
+function viewContent()
+{
+    firefox-esr http://localhost/index.php
+}
+
+###########################################################
+#                  10) LOGS Y ERRORES                     #
+###########################################################
+function logsErrors()
+{
+    
+    echo$(tail -n 100 /var/log/apache2/error.log)
+}
+
+###########################################################
+#                  11) Control de ssh                    #
+###########################################################
+
+function controlSSH()
+{
+	echo "Comprobando si SSH esta instalado ..."
+	aux=$(aptitude show ssh | grep "State: installed")
+	aux2=$(aptitude show ssh | grep "Estado: instalado")
+	aux3=$aux$aux2
+	if [ -z "$aux3" ]
+	then
+		echo "Instalando SSh ..."
+		sudo aptitude install ssh
+	else
+		echo "SSH ya esta instalado"
+	fi
+	#Redirijo todos los logs fallidos al fichero fail.txt
+	less /var/log/auth.log* | grep "Failed password" > /home/$(whoami)/fail.txt
+	#Redirijo todos los logs aceptados al fichero accept.txt
+	less /var/log/auth.log* | grep "Accepted password" > /home/$(whoami)/accept.txt
+
+
+
+	input="/home/$(whoami)/fail.txt"
+	while IFS= read -r var
+	do
+		imprimirFail "$var"
+	done < "$input"
+
+	input="/home/$(whoami)/accept.txt"
+	while IFS= read -r var
+	do
+		imprimirAccept "$var"
+	done < "$input"
+
+	rm /home/$(whoami)/fail.txt
+	rm /home/$(whoami)/accept.txt
+
+	sleep 5
+
+}
+###########################################################
+#                     12) SALIR                          #
+###########################################################
+
 
 function gestionarLogs()
 {
     cd /var/log/
     archivoscomprimidos="/tmp/aux.txt"    
 }
-
-###########################################################
-#                     12) SALIR                          #
-###########################################################
 
 function fin()
 {
@@ -195,6 +339,7 @@ function fin()
 
 ### MAIN ###
 opcionmenuppal=0
+installAplication aptitude 
 while test $opcionmenuppal -ne 12
 do
 	#Muestra el menu
@@ -229,16 +374,28 @@ do
                 phpTest
                 ;;
             5)
-                createPython
+                read -p "Introduce el nombre del entorno virtual:" rdo
+                createPython $rdo
                 ;;
             6)
                 installPackages
                 ;;
             7)
+                installPackages
                 testPython
                 ;;
+            8)
+                complexAplicationInstall
+                ;;
+            9)
+                viewContent
+                ;;
+            10)
+                logsErrors
+                ;;
 			12) 
-                fin;;
+                fin
+                ;;
 			*) 
                 ;;
 	esac 

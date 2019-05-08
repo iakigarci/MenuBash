@@ -8,6 +8,7 @@
 #!/bin/bash
 
 dirMenu=$(pwd)
+dirPython=$dirMenu
 function checkStatus()
 {
     echo -e ">>Comprobando el estado de $@... \n"
@@ -42,7 +43,7 @@ function installAplication()
 {
     if checkStatus $@
     then
-        echo -e "instalando $@ ... \n"
+        echo -e ">>Iinstalando $@ ... \n"
         sudo apt-get --assume-yes install $@ > /dev/null
     else 
         echo -e "$@ ya estaba instalado \n"
@@ -53,7 +54,7 @@ function installAplicationPY()
 {
     if checkStatusPY $@ 
     then
-        echo -e "instalando $@... \n"
+        echo -e ">>Instalando $@... \n"
         pip install $@ > /dev/null
     else
         echo -e "$@ ya estaba instalado \n"
@@ -76,7 +77,7 @@ function checkEnvStatus
 
 function acticateEnv()
 {
-    echo -e "activando entorno python... \n"
+    echo -e ">>Activando entorno python... \n"
     if checkEnvStatus
     then
         createPython python3envmetrix
@@ -109,7 +110,10 @@ function unistall()
 ###########################################################
 function apacheInstall()
 {
+    #Instalamos Apache
     installAplication apache2
+    
+    #Realizamos pruebas de conexión
     echo "realizando prueba de conexión..."
     aux=$(sudo netstat -anp | grep apache)
     if [[ -z aux ]]
@@ -130,6 +134,7 @@ function apacheAction()
     aux=$( sudo service apache2 status | grep active)
     echo $aux
     
+    #Instalamos net-tools
     installAplication net-tools
     netstat -l | grep http
     sleep 1
@@ -140,9 +145,12 @@ function apacheAction()
 ###########################################################
 function phpInstall()
 {
+    #Instalamos php y su dependencia
     installAplication php
-    installAplication libapache2-mod-php
-    echo -e "reiniciando apache... \n" 
+    installAplication libapache2-mod-phpç
+    
+    #Reiniciamos apache
+    echo -e ">>Reiniciando apache... \n" 
     sudo service apache2 restart
 }
 
@@ -151,6 +159,7 @@ function phpInstall()
 ###########################################################
 function phpTest()
 {
+    #Creamos el fichero test.php"
     echo "creando el archivo test.php"
     sudo sh -c 'echo "<?php phpinfo(); ?>" ?> /var/www/html/test.php'
     
@@ -175,7 +184,7 @@ function phpTest()
 function createPython()
 {
     echo -e "COMPROBANDO PYTHON \n"
-    cd /var/www/html
+    cd dirMenu
     rm -d -rf $1
     installAplication python-virtualenv virtualenv
     installAplication python3
@@ -190,6 +199,7 @@ function createPython()
     echo -e " \n"
     #Creamos entorno virtual 
     virtualenv $1 --python=python3
+    dirPython=$(pwd)
 }   
 
 ###########################################################
@@ -198,14 +208,19 @@ function createPython()
 function installPackages()
 {
     echo -e "INSTALANDO PAQUETES \n"
+    #Instalamos los paquetes de Linux
     installAplication python3-pip
     installAplication dos2unix
     
-    #createPython python3envmetrix
+    #Activamos el entorno virtual
     source python3envmetrix/bin/activate
+    
+    #Instalamos los paquetes de Python
     installAplicationPY numpy
     installAplicationPY nltk
     installAplicationPY argparse
+    
+    #Descativamos el entorno virtual
     deactivate
 }
 
@@ -214,8 +229,13 @@ function installPackages()
 ###########################################################
 function testPython()
 {
+    cd $dirPython
+    
+    #Activamos el entorno
     source python3envmetrix/bin/activate
-    echo -e "Iniciando el script de Pyhton \n"
+    
+    #Ejecutamos el programa de Python
+    echo -e ">>Iniciando el script de Pyhton... \n"
     python3 complejidadtextual.py textos/english.doc.txt
     deactivate python3envmetrix
 }
@@ -226,34 +246,35 @@ function testPython()
 function complexAplicationInstall()
 {
     #Copiamos todos los archivos a la carpeta /var/www/html
-    act=$(pwd)
-    if [[ "$dirMenu" != "$act" ]]
-    then
-        cd $dirMenu
-    fi
+    cd $dirMenu
     echo "directorio actual $(pwd)"
     sudo rm -rf /var/www/html/index.php /var/www/html/webprocess.sh /var/www/html/complejidadtextual.py
     sleep 2
     sudo cp {index.php,webprocess.sh,complejidadtextual.py,textos/english.doc.txt} /var/www/html
+    
+    #Creamos el entorno virtual en la carpeta fich y lo pasamos a /var/www/html
+    createPython python3envmetrix 
+    sudo cp python3envmetrix /var/www/html
+    dirPython = /var/www/html
+    
+    #Asignamos permisos
     sudo chown -R www-data:www-data /var/www
     sudo usermod -a -G www-data iakigarci
     sudo chmod -R 777 /var/www/html 
-    #Asignamos permisos
-    
+
+    #Cambiamos la variable VIRTUAL_ENV para que funcione todo correctamente
     cd /var/www/html
-    createPython python3envmetrix
     sudo sed -i "s/^VIRTUAL_ENV=.*/VIRTUAL_ENV=\"\/var\/www\/html\/python3envmetrix\"/g" /var/www/html/
     acticateEnv
     sudo sed -i "s/^DIRVIRTPYTHON=.*/DIRVIRTPYTHON=\'\/var\/www\/html\/python3envmetrix\'/g" /var/www/html/
     installPackages
     ./webprocess.sh english.doc.txt
     
+    #Volvemos a asignar permisos
     sudo chown -R www-data:www-data /var/www
     sudo usermod -a -G www-data iakigarci
     sudo chmod -R 777 /var/www/html 
     
-    
-    #/media/datos/UNIVERSIDAD/ISO/AplicacionWeb_ComplejidadTextual/ProyectoISO/fich/python3envmetrix
 }
 
 
@@ -262,6 +283,7 @@ function complexAplicationInstall()
 ###########################################################
 function viewContent()
 {
+    #Mostramos el contenido en el buscador
     firefox-esr http://localhost/index.php
 }
 
@@ -270,8 +292,10 @@ function viewContent()
 ###########################################################
 function logsErrors()
 {
-    
-    echo$(tail -n 100 /var/log/apache2/error.log)
+    cd $dirMenu
+    #Cojemos 100 errores para mostrarlos
+    tail -n 100 /var/log/apache2/error.log > errores.txt
+    cat errores.txt | awk '{split($0,a,"ImportError:"); print a[2]}'
 }
 
 ###########################################################
@@ -314,18 +338,31 @@ function controlSSH()
 	rm /home/$(whoami)/accept.txt
 
 	sleep 5
-
 }
+
+function imprimirFail()
+{
+	#En la variable IFS(INTERNAL FIELD SEPARATOR) guardo los " " que quiero splitear.
+	#En resto de valores los guardo en la variable array.
+  IFS=' ' read -r -a array <<< "$1"
+
+	#Al hacer ${array} hago que con las llaves, me interprete la variable array como un string.
+	echo "Status: [fail] Account name: ${array[10]}  Date: ${array[0]}, ${array[1]}, ${array[2]} "
+}
+
+function imprimirAccept()
+{
+	#En la variable IFS(INTERNAL FIELD SEPARATOR) guardo los " " que quiero splitear.
+	#En resto de valores los guardo en la variable array.
+  IFS=' ' read -r -a array <<< "$1"
+
+	#Al hacer ${array} hago que con las llaves, me interprete la variable array como un string.
+	echo "Status: [accept] Account name: ${array[8]}  Date: ${array[0]}, ${array[1]}, ${array[2]} "
+}
+
 ###########################################################
 #                     12) SALIR                          #
 ###########################################################
-
-
-function gestionarLogs()
-{
-    cd /var/log/
-    archivoscomprimidos="/tmp/aux.txt"    
-}
 
 function fin()
 {
